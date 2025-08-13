@@ -1,0 +1,30 @@
+# Étape 1 : Builder l'application
+FROM maven:3.9.6-eclipse-temurin-17 AS builder
+WORKDIR /app
+COPY pom.xml .
+COPY src ./src
+RUN mvn clean package -DskipTests
+
+# Étape 2 : Image finale avec Spark + Hadoop
+FROM openjdk:17-jdk-slim
+
+# Installer wget et tar
+RUN apt-get update && apt-get install -y wget tar && rm -rf /var/lib/apt/lists/*
+
+# Installer Spark + Hadoop
+ENV SPARK_VERSION=3.5.1 \
+    HADOOP_VERSION=3 \
+    SPARK_HOME=/opt/spark \
+    PATH=$PATH:/opt/spark/bin
+
+RUN wget https://archive.apache.org/dist/spark/spark-3.5.1/spark-3.5.1-bin-hadoop3.tgz && \
+    tar -xvzf spark-3.5.1-bin-hadoop3.tgz && \
+    mv spark-3.5.1-bin-hadoop3 /opt/spark && \
+    rm spark-3.5.1-bin-hadoop3.tgz
+
+
+# Copier le JAR Spring Boot
+COPY --from=builder /app/target/*.jar app.jar
+
+# Lancer Spring Boot
+ENTRYPOINT ["java", "-jar", "app.jar"]
